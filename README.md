@@ -1,49 +1,110 @@
-# Next.js with Docker, PM2 and NGINX
+# Production-Ready Next.js with Docker, PM2, and NGINX
 
-This project is a production Docker setup for a Next.js app.
+This repository demonstrates how to containerize a Next.js application for production using Docker, manage the Node.js process with PM2 Runtime, and leverage NGINX as a reverse proxy with caching capabilities.
 
-The Next.js app is launched with [PM2 Runtime](https://pm2.io/runtime/), which is a Production Process Manager for Node.js applications and is used to keep the app alive forever.
+---
 
-A second container with the [NGINX](https://www.nginx.com/) web server is used as a reverse proxy, and to handle HTTP caching.
+## Prerequisites
 
-## Docker Compose
+- Docker and Docker Compose installed on your machine
+- Basic familiarity with command-line Git and Docker
+
+---
+
+## Quick Start with Docker Compose
+
+1. From the root of this project, run:
+   ```bash
+   docker-compose up --build
+   ```
+2. Open your browser at `http://localhost/` to see the Next.js app.
+
+This command will:
+- Build the Next.js and NGINX images
+- Create containers connected via a custom bridge network
+- Expose NGINX on port 80
+
+---
+
+## Manual Setup Without Compose
+
+1. **Build the Docker images**:
+   ```bash
+   docker build -t nextjs-app .
+   docker build -t nginx-proxy ./nginx
+   ```
+
+2. **Create an isolated network**:
+   ```bash
+   docker network create app-network
+   ```
+
+3. **Launch the Next.js container**:
+   ```bash
+   docker run -d \
+     --name nextjs-container \
+     --network app-network \
+     nextjs-app
+   ```
+
+4. **Start the NGINX container** (linking to the Next.js service):
+   ```bash
+   docker run -d \
+     --name nginx-proxy \
+     --network app-network \
+     --link nextjs-container:app \
+     -p 80:80 \
+     nginx-proxy
+   ```
+
+> Inside NGINX, the Next.js server can be reached at `http://app:3000`.
+
+---
+
+## PM2 Runtime Integration
+
+PM2 Runtime ensures your application restarts on crashes or after deployments. You can run PM2 commands directly inside the Next.js container:
 
 ```bash
-docker-compose up
+# View real-time metrics
+docker exec -it nextjs-container pm2 monit
+
+# List managed processes
+docker exec -it nextjs-container pm2 list
+
+# Display process details
+docker exec -it nextjs-container pm2 show app
+
+# Reload all processes without downtime
+docker exec -it nextjs-container pm2 reload all
 ```
 
-NGINX listens on port 80, which is the default HTTP port, so you can just visit **http://localhost/**
+Adjust container names as needed.
 
-## Without Docker Compose
+---
 
-```bash
-# Build images
-docker build --tag nextjs-image .
-docker build --tag nginx-image ./nginx
-
-# Create shared network
-docker network create my-network
-
-# Run containers
-docker run --network my-network --name nextjs-container nextjs-image
-docker run --network my-network --link nextjs-container:nextjs --publish 80:80 nginx-image
-```
-
-_Next.js container is referenced inside NGINX container as `nextjs`._
-
-## PM2 commands
-
-PM2 commands can still be used inside a container with the `docker exec` command:
+## Directory Layout
 
 ```
-docker exec -it <container-id> pm2 monit          # Monitoring CPU/Usage of each process
+├── docker-compose.yml    # Orchestrates Next.js and NGINX services
+├── Dockerfile            # Builds the Next.js application image
+├── nginx/                # NGINX configuration and Dockerfile
+│   ├── default.conf
+│   └── Dockerfile
+└── src/                  # Your Next.js application source code
 ```
-```
-docker exec -it <container-id> pm2 list           # Listing managed processes
-```
-```
-docker exec -it <container-id> pm2 show           # Get more information about a process
-```
-```
-docker exec -it <container-id> pm2 reload all     # 0sec downtime reload all applications
-```
+
+---
+
+## Customization Tips
+
+- Tailor NGINX’s cache settings in `nginx/default.conf` to suit your traffic patterns.
+- Modify the Dockerfile’s build and start scripts to include environment variables or additional build steps.
+- Secure NGINX with HTTPS by mounting certificate files and updating the NGINX config.
+
+---
+
+## License
+
+This project is released under the MIT License. Feel free to adapt and extend it for your own Next.js deployments.
+
